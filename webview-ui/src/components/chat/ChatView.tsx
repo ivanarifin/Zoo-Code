@@ -137,6 +137,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			if (message?.type === "say" && message.say === "completion_result") {
 				return message.ts
 			}
+
+			// Handle ask-only completion_result rows that carry completion text.
+			if (message?.type === "ask" && message.ask === "completion_result" && (message.text ?? "") !== "") {
+				return message.ts
+			}
 		}
 
 		return undefined

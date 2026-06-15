@@ -1676,6 +1676,9 @@ export const ChatRowContent = ({
 								</div>
 								<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 									<Markdown markdown={message.text} partial={message.partial} />
+									{!message.partial && enableCheckpoints !== false && completionCheckpoint ? (
+										<SeeNewChangesButtons checkpoint={completionCheckpoint} />
+									) : null}
 								</div>
 							</div>
 						)

@@ -113,6 +113,25 @@ export const webviewMessageHandler = async (
 		vscode.window.showInformationMessage(getRouterUnavailableSignInMessage())
 	}
 
+	const getCompletionCheckpointForMessage = (
+		currentCline: { clineMessages: ClineMessage[] },
+		checkpointTs?: number,
+	) => {
+		if (checkpointTs !== undefined) {
+			const checkpoint = currentCline.clineMessages.find(
+				(message) =>
+					message.ts === checkpointTs &&
+					message.type === "say" &&
+					message.say === "checkpoint_saved" &&
+					typeof message.text === "string",
+			)
+
+			return checkpoint ? { ts: checkpoint.ts, commitHash: checkpoint.text! } : undefined
+		}
+
+		return getCompletionCheckpoint(currentCline.clineMessages)
+	}
+
 	const getCurrentMode = async (): Promise<string> => {
 		const currentTask = provider.getCurrentTask()
 
@@ -1291,7 +1310,9 @@ export const webviewMessageHandler = async (
 		}
 		case "completionCheckpointDiff": {
 			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline ? getCompletionCheckpoint(currentCline.clineMessages) : undefined
+			const checkpoint = currentCline
+				? getCompletionCheckpointForMessage(currentCline, message.checkpointTs)
+				: undefined
 
 			if (currentCline && checkpoint) {
 				await currentCline.checkpointDiff({
@@ -1305,7 +1326,9 @@ export const webviewMessageHandler = async (
 		}
 		case "completionCheckpointRestore": {
 			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline ? getCompletionCheckpoint(currentCline.clineMessages) : undefined
+			const checkpoint = currentCline
+				? getCompletionCheckpointForMessage(currentCline, message.checkpointTs)
+				: undefined
 
 			if (checkpoint) {
 				await provider.cancelTask()
@@ -1314,6 +1337,7 @@ export const webviewMessageHandler = async (
 					await pWaitFor(() => provider.getCurrentTask()?.isInitialized === true, { timeout: 3_000 })
 				} catch (error) {
 					vscode.window.showErrorMessage(t("common:errors.checkpoint_timeout"))
+					return
 				}
 
 				try {

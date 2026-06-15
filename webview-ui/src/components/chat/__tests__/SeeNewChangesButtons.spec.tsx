@@ -18,8 +18,8 @@ vi.mock("react-i18next", () => ({
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeButton: ({ children, onClick, disabled }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-		<button type="button" onClick={onClick} disabled={disabled}>
+	VSCodeButton: ({ children, onClick, disabled, title }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+		<button type="button" onClick={onClick} disabled={disabled} title={title}>
 			{children}
 		</button>
 	),
@@ -35,7 +35,7 @@ describe("SeeNewChangesButtons", () => {
 
 		fireEvent.click(getByText("chat:seeNewChanges.title"))
 
-		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointDiff", checkpointTs: 2 })
 	})
 
 	it("requires confirmation before restoring changes", () => {
@@ -52,7 +52,7 @@ describe("SeeNewChangesButtons", () => {
 
 		fireEvent.click(getByText("chat:checkpoint.menu.confirm chat:restoreChanges.title"))
 
-		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointRestore" })
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "completionCheckpointRestore", checkpointTs: 2 })
 	})
 
 	it("returns to the initial actions when restore confirmation is cancelled", () => {
@@ -66,5 +66,14 @@ describe("SeeNewChangesButtons", () => {
 		expect(getByText("chat:seeNewChanges.title")).toBeInTheDocument()
 		expect(getByText("chat:restoreChanges.title")).toBeInTheDocument()
 		expect(queryByText("chat:checkpoint.menu.confirm chat:restoreChanges.title")).not.toBeInTheDocument()
+	})
+
+	it("wires tooltip copy into the primary actions", () => {
+		const { getByText } = render(
+			<SeeNewChangesButtons checkpoint={{ ts: 2, commitHash: "checkpoint-after-user-prompt" }} />,
+		)
+
+		expect(getByText("chat:seeNewChanges.title")).toHaveAttribute("title", "chat:seeNewChanges.tooltip")
+		expect(getByText("chat:restoreChanges.title")).toHaveAttribute("title", "chat:restoreChanges.tooltip")
 	})
 })

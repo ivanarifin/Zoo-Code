@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import pWaitFor from "p-wait-for"
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import { saveTaskMessages } from "../../task-persistence"
 import { handleCheckpointRestoreOperation } from "../checkpointRestoreHandler"
@@ -7,6 +8,13 @@ import { MessageManager } from "../../message-manager"
 // Mock dependencies
 vi.mock("../../task-persistence")
 vi.mock("../checkpointRestoreHandler")
+vi.mock("p-wait-for", () => ({
+	default: vi.fn(async (condition: () => boolean) => {
+		if (!condition()) {
+			throw new Error("condition not met")
+		}
+	}),
+}))
 vi.mock("vscode", () => ({
 	window: {
 		showErrorMessage: vi.fn(),
@@ -151,7 +159,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		})
 
 		it("diffs changes from the checkpoint created after the latest prompt", async () => {
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", checkpointTs: 4 })
 
 			expect(mockCline.checkpointDiff).toHaveBeenCalledWith({
 				ts: 4,
@@ -161,7 +169,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		})
 
 		it("restores files and task state to the checkpoint created after the latest prompt", async () => {
-			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", checkpointTs: 4 })
 
 			expect(mockProvider.cancelTask).toHaveBeenCalled()
 			expect(mockCline.checkpointRestore).toHaveBeenCalledWith({
@@ -184,6 +192,24 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 			expect(mockCline.checkpointDiff).not.toHaveBeenCalled()
 			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
 			expect(mockProvider.cancelTask).not.toHaveBeenCalled()
+		})
+
+		it("does not re-derive a different checkpoint when an explicit checkpoint timestamp is missing", async () => {
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff", checkpointTs: 999 })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", checkpointTs: 999 })
+
+			expect(mockCline.checkpointDiff).not.toHaveBeenCalled()
+			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
+			expect(mockProvider.cancelTask).not.toHaveBeenCalled()
+		})
+
+		it("does not restore when task re-initialization times out", async () => {
+			;(pWaitFor as any).mockRejectedValueOnce(new Error("timed out"))
+
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore", checkpointTs: 4 })
+
+			expect(mockProvider.cancelTask).toHaveBeenCalled()
+			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
 		})
 	})
 })

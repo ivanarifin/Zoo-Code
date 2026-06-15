@@ -11,14 +11,14 @@ export const SeeNewChangesButtons = ({ checkpoint }: { checkpoint: CompletionChe
 	const [restoringChanges, setRestoringChanges] = useState(false)
 
 	const seeNewChangesCallback = useCallback(() => {
-		vscode.postMessage({ type: "completionCheckpointDiff" })
-	}, [])
+		vscode.postMessage({ type: "completionCheckpointDiff", checkpointTs: checkpoint.ts })
+	}, [checkpoint.ts])
 
 	const restoreChangesCallback = useCallback(() => setRestoringChanges(true), [])
 
 	const confirmRestoreChangesCallback = useCallback(() => {
-		vscode.postMessage({ type: "completionCheckpointRestore" })
-	}, [])
+		vscode.postMessage({ type: "completionCheckpointRestore", checkpointTs: checkpoint.ts })
+	}, [checkpoint.ts])
 
 	const cancelRestoreChangesCallback = useCallback(() => setRestoringChanges(false), [])
 
@@ -38,12 +38,17 @@ export const SeeNewChangesButtons = ({ checkpoint }: { checkpoint: CompletionChe
 				</>
 			) : (
 				<>
-					<VSCodeButton className="w-full mt-2" appearance="secondary" onClick={seeNewChangesCallback}>
+					<VSCodeButton
+						className="w-full mt-2"
+						appearance="secondary"
+						title={t("chat:seeNewChanges.tooltip")}
+						onClick={seeNewChangesCallback}>
 						{t("chat:seeNewChanges.title")}
 					</VSCodeButton>
 					<VSCodeButton
 						className="w-full mt-2"
 						appearance="secondary"
+						title={t("chat:restoreChanges.tooltip")}
 						disabled={!checkpoint.commitHash}
 						onClick={restoreChangesCallback}>
 						{t("chat:restoreChanges.title")}

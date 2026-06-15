@@ -281,7 +281,7 @@ export interface CompletionCheckpoint {
 }
 
 const isInitialTaskMessage = (message: ClineMessage | undefined): boolean => {
-	return message?.type === "say" && message.say === "text"
+	return message?.type === "say" && (message.say === "text" || (message as { say?: string }).say === "task")
 }
 
 const isUserFeedbackMessage = (message: ClineMessage): boolean => {

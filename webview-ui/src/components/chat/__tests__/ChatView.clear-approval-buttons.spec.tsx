@@ -42,7 +42,9 @@ vi.mock("../ChatRow", () => ({
 		return (
 			<div data-testid="chat-row">
 				{JSON.stringify(message)}
-				{message.type === "say" && message.say === "completion_result" && completionCheckpoint ? (
+				{((message.type === "say" && message.say === "completion_result") ||
+					(message.type === "ask" && message.ask === "completion_result" && message.text)) &&
+				completionCheckpoint ? (
 					<div data-testid="completion-checkpoint-actions">
 						<button type="button">chat:seeNewChanges.title</button>
 						<button type="button">chat:restoreChanges.title</button>
@@ -158,12 +160,12 @@ const autoApprovedCommandAsk = (): ClineMessage[] => [
 ]
 
 const completionAskWithoutCheckpoint = (): ClineMessage[] => [
-	{ type: "say", say: "text", ts: 1, text: "Initial task" },
+	{ type: "say", say: "task", ts: 1, text: "Initial task" },
 	{ type: "ask", ask: "completion_result", ts: 2, text: "Task complete", partial: false },
 ]
 
 const completionAskWithCheckpoint = (): ClineMessage[] => [
-	{ type: "say", say: "text", ts: 1, text: "Initial task" },
+	{ type: "say", say: "task", ts: 1, text: "Initial task" },
 	{
 		type: "say",
 		say: "checkpoint_saved",
@@ -173,6 +175,18 @@ const completionAskWithCheckpoint = (): ClineMessage[] => [
 	},
 	{ type: "say", say: "completion_result", ts: 3, text: "Task complete" },
 	{ type: "ask", ask: "completion_result", ts: 4, text: "", partial: false },
+]
+
+const askOnlyCompletionWithCheckpoint = (): ClineMessage[] => [
+	{ type: "say", say: "task", ts: 1, text: "Initial task" },
+	{
+		type: "say",
+		say: "checkpoint_saved",
+		ts: 2,
+		text: "checkpoint-after-user-prompt",
+		checkpoint: { suppressMessage: true },
+	},
+	{ type: "ask", ask: "completion_result", ts: 3, text: "Task complete", partial: false },
 ]
 
 describe("ChatView approval button behavior", () => {
@@ -224,6 +238,20 @@ describe("ChatView approval button behavior", () => {
 			expect(queryByText(SEE_NEW_CHANGES_BUTTON_LABEL)).toBeInTheDocument()
 			expect(queryByText(RESTORE_CHANGES_BUTTON_LABEL)).toBeInTheDocument()
 			expect(queryByText(START_NEW_TASK_BUTTON_LABEL)).toBeInTheDocument()
+		})
+	})
+
+	it("shows inline checkpoint actions for ask-only completion rows with text", async () => {
+		const { queryByText, queryByTestId } = renderChatView()
+
+		await act(async () => {
+			hydrateState(askOnlyCompletionWithCheckpoint())
+		})
+
+		await waitFor(() => {
+			expect(queryByTestId("completion-checkpoint-actions")).toBeInTheDocument()
+			expect(queryByText(SEE_NEW_CHANGES_BUTTON_LABEL)).toBeInTheDocument()
+			expect(queryByText(RESTORE_CHANGES_BUTTON_LABEL)).toBeInTheDocument()
 		})
 	})
 
