@@ -21,6 +21,7 @@ import {
 	ExperimentId,
 	checkoutDiffPayloadSchema,
 	checkoutRestorePayloadSchema,
+	getCompletionCheckpoint,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 import { CloudService } from "@roo-code/cloud"
@@ -1281,6 +1282,46 @@ export const webviewMessageHandler = async (
 
 				try {
 					await provider.getCurrentTask()?.checkpointRestore(result.data)
+				} catch (error) {
+					vscode.window.showErrorMessage(t("common:errors.checkpoint_failed"))
+				}
+			}
+
+			break
+		}
+		case "completionCheckpointDiff": {
+			const currentCline = provider.getCurrentTask()
+			const checkpoint = currentCline ? getCompletionCheckpoint(currentCline.clineMessages) : undefined
+
+			if (currentCline && checkpoint) {
+				await currentCline.checkpointDiff({
+					ts: checkpoint.ts,
+					commitHash: checkpoint.commitHash,
+					mode: "to-current",
+				})
+			}
+
+			break
+		}
+		case "completionCheckpointRestore": {
+			const currentCline = provider.getCurrentTask()
+			const checkpoint = currentCline ? getCompletionCheckpoint(currentCline.clineMessages) : undefined
+
+			if (checkpoint) {
+				await provider.cancelTask()
+
+				try {
+					await pWaitFor(() => provider.getCurrentTask()?.isInitialized === true, { timeout: 3_000 })
+				} catch (error) {
+					vscode.window.showErrorMessage(t("common:errors.checkpoint_timeout"))
+				}
+
+				try {
+					await provider.getCurrentTask()?.checkpointRestore({
+						ts: checkpoint.ts,
+						commitHash: checkpoint.commitHash,
+						mode: "restore",
+					})
 				} catch (error) {
 					vscode.window.showErrorMessage(t("common:errors.checkpoint_failed"))
 				}

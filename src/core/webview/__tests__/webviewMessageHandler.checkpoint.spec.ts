@@ -26,6 +26,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 		// Setup mock Cline instance
 		mockCline = {
 			taskId: "test-task-123",
+			isInitialized: true,
 			clineMessages: [
 				{ ts: 1, type: "user", say: "user", text: "First message" },
 				{ ts: 2, type: "assistant", say: "checkpoint_saved", text: "abc123" },
@@ -37,6 +38,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 				{ ts: 3, role: "user", content: [{ type: "text", text: "Message to delete" }] },
 				{ ts: 4, role: "assistant", content: [{ type: "text", text: "After message" }] },
 			],
+			checkpointDiff: vi.fn(),
 			checkpointRestore: vi.fn(),
 			overwriteClineMessages: vi.fn(),
 			overwriteApiConversationHistory: vi.fn(),
@@ -52,6 +54,7 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 			})),
 			createTaskWithHistoryItem: vi.fn(),
 			setPendingEditOperation: vi.fn(),
+			cancelTask: vi.fn(),
 			contextProxy: {
 				globalStorageUri: { fsPath: "/test/storage" },
 			},
@@ -132,6 +135,55 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 					apiConversationHistoryIndex: 0,
 				},
 			})
+		})
+	})
+
+	describe("completion checkpoint actions", () => {
+		beforeEach(() => {
+			mockCline.clineMessages = [
+				{ ts: 1, type: "say", say: "text", text: "Initial task" },
+				{ ts: 2, type: "say", say: "checkpoint_saved", text: "initial-checkpoint" },
+				{ ts: 3, type: "say", say: "user_feedback", text: "Latest prompt" },
+				{ ts: 4, type: "say", say: "checkpoint_saved", text: "latest-prompt-checkpoint" },
+				{ ts: 5, type: "say", say: "completion_result", text: "Task complete" },
+				{ ts: 6, type: "ask", ask: "completion_result", text: "", partial: false },
+			]
+		})
+
+		it("diffs changes from the checkpoint created after the latest prompt", async () => {
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
+
+			expect(mockCline.checkpointDiff).toHaveBeenCalledWith({
+				ts: 4,
+				commitHash: "latest-prompt-checkpoint",
+				mode: "to-current",
+			})
+		})
+
+		it("restores files and task state to the checkpoint created after the latest prompt", async () => {
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+
+			expect(mockProvider.cancelTask).toHaveBeenCalled()
+			expect(mockCline.checkpointRestore).toHaveBeenCalledWith({
+				ts: 4,
+				commitHash: "latest-prompt-checkpoint",
+				mode: "restore",
+			})
+		})
+
+		it("does not diff or restore when no latest-prompt checkpoint exists", async () => {
+			mockCline.clineMessages = [
+				{ ts: 1, type: "say", say: "text", text: "Initial task" },
+				{ ts: 2, type: "say", say: "user_feedback", text: "Latest prompt" },
+				{ ts: 3, type: "ask", ask: "completion_result", text: "", partial: false },
+			]
+
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointDiff" })
+			await webviewMessageHandler(mockProvider, { type: "completionCheckpointRestore" })
+
+			expect(mockCline.checkpointDiff).not.toHaveBeenCalled()
+			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
+			expect(mockProvider.cancelTask).not.toHaveBeenCalled()
 		})
 	})
 })
