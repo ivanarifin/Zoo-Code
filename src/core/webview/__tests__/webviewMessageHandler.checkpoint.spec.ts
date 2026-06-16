@@ -210,6 +210,8 @@ describe("webviewMessageHandler - checkpoint operations", () => {
 
 			expect(mockProvider.cancelTask).toHaveBeenCalled()
 			expect(mockCline.checkpointRestore).not.toHaveBeenCalled()
+			const vscode = await import("vscode")
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("errors.checkpoint_timeout")
 		})
 	})
 })
