@@ -63,6 +63,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 				...DEFAULT_HEADERS,
 				"X-Unbound-Metadata": JSON.stringify({ labels: [{ key: "app", value: "zoo-code" }] }),
 			},
+			timeout: this.timeoutMs,
 		})
 	}
 
@@ -194,7 +195,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 	async completePrompt(prompt: string): Promise<string> {
 		const { id: model, maxTokens: max_tokens, temperature } = await this.fetchModel()
 
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
 
 		const completionParams: UnboundChatCompletionParams = {
 			model,

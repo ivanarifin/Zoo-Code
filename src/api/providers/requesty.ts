@@ -69,6 +69,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			baseURL: this.baseURL,
 			apiKey: apiKey,
 			defaultHeaders: DEFAULT_HEADERS,
+			timeout: this.timeoutMs,
 		})
 	}
 
@@ -206,7 +207,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 	async completePrompt(prompt: string): Promise<string> {
 		const { id: model, maxTokens: max_tokens, temperature } = await this.fetchModel()
 
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
 
 		const completionParams: RequestyChatCompletionParams = {
 			model,
