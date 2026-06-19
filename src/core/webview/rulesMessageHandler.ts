@@ -1,0 +1,131 @@
+import * as vscode from "vscode"
+
+import type { CreateRuleInput, DeleteRuleInput, RuleMetadata, WebviewMessage } from "@roo-code/types"
+
+import type { ClineProvider } from "./ClineProvider"
+import { openFile } from "../../integrations/misc/open-file"
+import { createRule, deleteRule, getRules, getRulesDirectoryPath, resolveRuleFile } from "../../services/rules/rules"
+
+export async function handleRequestRules(provider: ClineProvider, cwd: string): Promise<RuleMetadata[]> {
+	try {
+		const modes = await provider.getModes()
+		const rules = await getRules(cwd, { modes })
+		await provider.postMessageToWebview({ type: "rules", rules })
+		return rules
+	} catch (error) {
+		provider.log(`Error fetching rules: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+		await provider.postMessageToWebview({ type: "rules", rules: [] })
+		return []
+	}
+}
+
+export async function handleCreateRule(
+	provider: ClineProvider,
+	cwd: string,
+	message: WebviewMessage,
+): Promise<RuleMetadata[] | undefined> {
+	try {
+		const input = parseCreateRuleInput(message)
+		const createdPath = await createRule(cwd, input)
+		openFile(createdPath)
+		return await refreshRules(provider, cwd)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		provider.log(`Error creating rule: ${errorMessage}`)
+		vscode.window.showErrorMessage(`Failed to create rule: ${errorMessage}`)
+		return undefined
+	}
+}
+
+export async function handleDeleteRule(
+	provider: ClineProvider,
+	cwd: string,
+	message: WebviewMessage,
+): Promise<RuleMetadata[] | undefined> {
+	try {
+		const input = parseDeleteRuleInput(message)
+		await deleteRule(cwd, input)
+		return await refreshRules(provider, cwd)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		provider.log(`Error deleting rule: ${errorMessage}`)
+		vscode.window.showErrorMessage(`Failed to delete rule: ${errorMessage}`)
+		return undefined
+	}
+}
+
+export async function handleOpenRuleFile(provider: ClineProvider, cwd: string, message: WebviewMessage): Promise<void> {
+	try {
+		const input = parseDeleteRuleInput(message)
+		const filePath = await resolveRuleFile(cwd, input)
+		if (!filePath) {
+			throw new Error("Rule file not found")
+		}
+
+		openFile(filePath)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		provider.log(`Error opening rule file: ${errorMessage}`)
+		vscode.window.showErrorMessage(`Failed to open rule file: ${errorMessage}`)
+	}
+}
+
+export async function handleOpenRulesDirectory(
+	provider: ClineProvider,
+	cwd: string,
+	message: WebviewMessage,
+): Promise<void> {
+	try {
+		const values = message.values ?? {}
+		const directoryPath = getRulesDirectoryPath(cwd, {
+			scope: values.scope,
+			kind: values.kind,
+			modeSlug: values.modeSlug,
+		} as CreateRuleInput)
+		openFile(directoryPath)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		provider.log(`Error opening rules directory: ${errorMessage}`)
+		vscode.window.showErrorMessage(`Failed to open rules directory: ${errorMessage}`)
+	}
+}
+
+async function refreshRules(provider: ClineProvider, cwd: string): Promise<RuleMetadata[]> {
+	const modes = await provider.getModes()
+	const rules = await getRules(cwd, { modes })
+	await provider.postMessageToWebview({ type: "rules", rules })
+	return rules
+}
+
+function parseCreateRuleInput(message: WebviewMessage): CreateRuleInput {
+	const values = message.values ?? {}
+	const input = {
+		scope: values.scope,
+		kind: values.kind,
+		modeSlug: values.modeSlug,
+		fileName: values.fileName ?? message.text,
+	} as CreateRuleInput
+
+	if (!input.scope || !input.kind || !input.fileName) {
+		throw new Error("Missing required fields: scope, kind, or fileName")
+	}
+
+	return input
+}
+
+function parseDeleteRuleInput(message: WebviewMessage): DeleteRuleInput {
+	const values = message.values ?? {}
+	const input = {
+		id: values.id,
+		scope: values.scope,
+		kind: values.kind,
+		modeSlug: values.modeSlug,
+		relativePath: values.relativePath ?? message.text,
+	} as DeleteRuleInput
+
+	if (!input.scope || !input.kind || !input.relativePath) {
+		throw new Error("Missing required fields: scope, kind, or relativePath")
+	}
+
+	return input
+}
