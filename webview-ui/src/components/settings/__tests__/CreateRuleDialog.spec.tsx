@@ -46,8 +46,11 @@ vi.mock("@/components/ui", () => ({
 			{...props}
 		/>
 	),
-	Dialog: ({ children, open }: any) => (
+	Dialog: ({ children, open, onOpenChange }: any) => (
 		<div data-testid="dialog" data-open={open}>
+			<button data-testid="dialog-close" onClick={() => onOpenChange?.(false)}>
+				close
+			</button>
 			{open && children}
 		</div>
 	),
@@ -186,5 +189,33 @@ describe("CreateRuleDialog", () => {
 		})
 		expect(mockOnRuleCreated).toHaveBeenCalled()
 		expect(mockOnOpenChange).toHaveBeenCalledWith(false)
+	})
+	it("resets form state when closed through dialog onOpenChange", () => {
+		const { rerender } = render(
+			<CreateRuleDialog
+				open={true}
+				onOpenChange={mockOnOpenChange}
+				onRuleCreated={mockOnRuleCreated}
+				hasWorkspace={true}
+			/>,
+		)
+
+		const nameInput = screen.getByPlaceholderText("settings:rules.createDialog.namePlaceholder") as HTMLInputElement
+		fireEvent.change(nameInput, { target: { value: "stale-rule" } })
+		expect(nameInput.value).toBe("stale-rule")
+
+		fireEvent.click(screen.getByTestId("dialog-close"))
+		expect(mockOnOpenChange).toHaveBeenCalledWith(false)
+
+		rerender(
+			<CreateRuleDialog
+				open={true}
+				onOpenChange={mockOnOpenChange}
+				onRuleCreated={mockOnRuleCreated}
+				hasWorkspace={true}
+			/>,
+		)
+
+		expect(screen.getByPlaceholderText("settings:rules.createDialog.namePlaceholder")).toHaveValue("")
 	})
 })

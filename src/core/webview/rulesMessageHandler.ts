@@ -6,6 +6,10 @@ import type { ClineProvider } from "./ClineProvider"
 import { openFile } from "../../integrations/misc/open-file"
 import { createRule, deleteRule, getRules, getRulesDirectoryPath, resolveRuleFile } from "../../services/rules/rules"
 
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
+}
+
 export async function handleRequestRules(provider: ClineProvider, cwd: string): Promise<RuleMetadata[]> {
 	try {
 		const modes = await provider.getModes()
@@ -13,7 +17,7 @@ export async function handleRequestRules(provider: ClineProvider, cwd: string): 
 		await provider.postMessageToWebview({ type: "rules", rules })
 		return rules
 	} catch (error) {
-		provider.log(`Error fetching rules: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+		provider.log(`Error fetching rules: ${getErrorMessage(error)}`)
 		await provider.postMessageToWebview({ type: "rules", rules: [] })
 		return []
 	}
@@ -28,11 +32,19 @@ export async function handleCreateRule(
 		const input = parseCreateRuleInput(message)
 		const createdPath = await createRule(cwd, input)
 		openFile(createdPath)
-		return await refreshRules(provider, cwd)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		provider.log(`Error creating rule: ${errorMessage}`)
 		vscode.window.showErrorMessage(`Failed to create rule: ${errorMessage}`)
+		return undefined
+	}
+
+	try {
+		return await refreshRules(provider, cwd)
+	} catch (error) {
+		const errorMessage = getErrorMessage(error)
+		provider.log(`Rule created but failed to refresh rules: ${errorMessage}`)
+		vscode.window.showWarningMessage("Rule created, but refreshing the rules list failed.")
 		return undefined
 	}
 }
@@ -45,11 +57,19 @@ export async function handleDeleteRule(
 	try {
 		const input = parseDeleteRuleInput(message)
 		await deleteRule(cwd, input)
-		return await refreshRules(provider, cwd)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		provider.log(`Error deleting rule: ${errorMessage}`)
 		vscode.window.showErrorMessage(`Failed to delete rule: ${errorMessage}`)
+		return undefined
+	}
+
+	try {
+		return await refreshRules(provider, cwd)
+	} catch (error) {
+		const errorMessage = getErrorMessage(error)
+		provider.log(`Rule deleted but failed to refresh rules: ${errorMessage}`)
+		vscode.window.showWarningMessage("Rule deleted, but refreshing the rules list failed.")
 		return undefined
 	}
 }
@@ -64,7 +84,7 @@ export async function handleOpenRuleFile(provider: ClineProvider, cwd: string, m
 
 		openFile(filePath)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		provider.log(`Error opening rule file: ${errorMessage}`)
 		vscode.window.showErrorMessage(`Failed to open rule file: ${errorMessage}`)
 	}
@@ -84,7 +104,7 @@ export async function handleOpenRulesDirectory(
 		} as CreateRuleInput)
 		openFile(directoryPath)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		provider.log(`Error opening rules directory: ${errorMessage}`)
 		vscode.window.showErrorMessage(`Failed to open rules directory: ${errorMessage}`)
 	}

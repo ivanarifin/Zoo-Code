@@ -113,7 +113,12 @@ export const CreateRuleDialog: React.FC<CreateRuleDialogProps> = ({
 	}, [name, kind, modeSlug, scope, handleClose, onRuleCreated])
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) resetForm()
+				onOpenChange(nextOpen)
+			}}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>{t("settings:rules.createDialog.title")}</DialogTitle>

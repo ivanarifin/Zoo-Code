@@ -120,16 +120,55 @@ describe("rules service", () => {
 		).rejects.toThrow("Invalid rule path")
 	})
 
-	it("ignores excluded cache and system files", async () => {
+	it("ignores non-markdown, cache, and system files", async () => {
 		await fs.mkdir(path.join(cwd, ".roo", "rules"), { recursive: true })
 		await fs.writeFile(path.join(cwd, ".roo", "rules", "good.md"), "# Good")
 		await fs.writeFile(path.join(cwd, ".roo", "rules", "debug.log"), "log")
 		await fs.writeFile(path.join(cwd, ".roo", "rules", ".DS_Store"), "store")
+		await fs.writeFile(path.join(cwd, ".roo", "rules", "notes.txt"), "notes")
 
 		const rules = await getRules(cwd, { modes: [] })
 
 		expect(rules.map((rule) => rule.name)).toEqual(["good.md"])
 		expect(shouldIncludeRuleFile("debug.log")).toBe(false)
+		expect(shouldIncludeRuleFile("notes.txt")).toBe(false)
+		expect(shouldIncludeRuleFile("good.md")).toBe(true)
+	})
+
+	it("round-trips symlinked directory rules through resolve and delete", async () => {
+		const projectRulesDir = path.join(cwd, ".roo", "rules")
+		const targetRulesDir = path.join(tempDir, "target-rules")
+		const targetRulePath = path.join(targetRulesDir, "nested", "symlinked.md")
+		await fs.mkdir(path.dirname(targetRulePath), { recursive: true })
+		await fs.mkdir(projectRulesDir, { recursive: true })
+		await fs.writeFile(targetRulePath, "# Symlinked")
+		await fs.symlink(targetRulesDir, path.join(projectRulesDir, "linked"), "dir")
+
+		const rules = await getRules(cwd, { modes: [] })
+		const symlinkedRule = rules.find((rule) => rule.name === "symlinked.md")
+
+		expect(symlinkedRule).toEqual(
+			expect.objectContaining({
+				isSymlink: true,
+				relativePath: path.join("linked", "nested", "symlinked.md"),
+				filePath: targetRulePath,
+			}),
+		)
+		expect(symlinkedRule!.relativePath).not.toContain("..")
+
+		const resolvedPath = await resolveRuleFile(cwd, {
+			scope: "project",
+			kind: "generic",
+			relativePath: symlinkedRule!.relativePath,
+		})
+		expect(resolvedPath).toBe(path.join(projectRulesDir, "linked", "nested", "symlinked.md"))
+
+		await deleteRule(cwd, {
+			scope: "project",
+			kind: "generic",
+			relativePath: symlinkedRule!.relativePath,
+		})
+		await expect(fs.stat(targetRulePath)).rejects.toMatchObject({ code: "ENOENT" })
 	})
 
 	it("handles missing directories as empty lists", async () => {

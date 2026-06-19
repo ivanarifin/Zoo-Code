@@ -4,6 +4,7 @@ import type { ClineProvider } from "../ClineProvider"
 vi.mock("vscode", () => ({
 	window: {
 		showErrorMessage: vi.fn(),
+		showWarningMessage: vi.fn(),
 	},
 }))
 
@@ -21,8 +22,14 @@ vi.mock("../../../services/rules/rules", () => ({
 
 import * as vscode from "vscode"
 import { openFile } from "../../../integrations/misc/open-file"
-import { createRule, deleteRule, getRules, resolveRuleFile } from "../../../services/rules/rules"
-import { handleCreateRule, handleDeleteRule, handleOpenRuleFile, handleRequestRules } from "../rulesMessageHandler"
+import { createRule, deleteRule, getRules, getRulesDirectoryPath, resolveRuleFile } from "../../../services/rules/rules"
+import {
+	handleCreateRule,
+	handleDeleteRule,
+	handleOpenRuleFile,
+	handleOpenRulesDirectory,
+	handleRequestRules,
+} from "../rulesMessageHandler"
 
 const mockRules: RuleMetadata[] = [
 	{
@@ -138,5 +145,72 @@ describe("rulesMessageHandler", () => {
 			"Failed to create rule: Workspace rules require an open workspace",
 		)
 		expect(mockPostMessageToWebview).not.toHaveBeenCalled()
+	})
+	it("handleRequestRules safely handles nullish errors", async () => {
+		const provider = createMockProvider()
+		vi.mocked(getRules).mockRejectedValue(null)
+
+		const result = await handleRequestRules(provider, "/workspace")
+
+		expect(result).toEqual([])
+		expect(mockLog).toHaveBeenCalledWith("Error fetching rules: null")
+		expect(mockPostMessageToWebview).toHaveBeenCalledWith({ type: "rules", rules: [] })
+	})
+
+	it("handleCreateRule warns when refresh fails after creation succeeds", async () => {
+		const provider = createMockProvider()
+		vi.mocked(createRule).mockResolvedValue("/workspace/.roo/rules/new.md")
+		vi.mocked(getRules).mockRejectedValue(new Error("refresh failed"))
+
+		const result = await handleCreateRule(provider, "/workspace", {
+			type: "createRule",
+			values: { scope: "project", kind: "generic", fileName: "new.md" },
+		} as WebviewMessage)
+
+		expect(result).toBeUndefined()
+		expect(createRule).toHaveBeenCalledWith("/workspace", { scope: "project", kind: "generic", fileName: "new.md" })
+		expect(openFile).toHaveBeenCalledWith("/workspace/.roo/rules/new.md")
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+		expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+			"Rule created, but refreshing the rules list failed.",
+		)
+	})
+
+	it("handleDeleteRule warns when refresh fails after deletion succeeds", async () => {
+		const provider = createMockProvider()
+		vi.mocked(getRules).mockRejectedValue(new Error("refresh failed"))
+
+		const result = await handleDeleteRule(provider, "/workspace", {
+			type: "deleteRule",
+			values: { scope: "global", kind: "generic", relativePath: "rule.md" },
+		} as WebviewMessage)
+
+		expect(result).toBeUndefined()
+		expect(deleteRule).toHaveBeenCalledWith("/workspace", {
+			scope: "global",
+			kind: "generic",
+			relativePath: "rule.md",
+		})
+		expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+		expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+			"Rule deleted, but refreshing the rules list failed.",
+		)
+	})
+
+	it("handleOpenRulesDirectory resolves and opens the requested rules directory", async () => {
+		const provider = createMockProvider()
+		vi.mocked(getRulesDirectoryPath).mockReturnValue("/workspace/.roo/rules-code")
+
+		await handleOpenRulesDirectory(provider, "/workspace", {
+			type: "openRulesDirectory",
+			values: { scope: "project", kind: "mode", modeSlug: "code" },
+		} as WebviewMessage)
+
+		expect(getRulesDirectoryPath).toHaveBeenCalledWith("/workspace", {
+			scope: "project",
+			kind: "mode",
+			modeSlug: "code",
+		})
+		expect(openFile).toHaveBeenCalledWith("/workspace/.roo/rules-code")
 	})
 })

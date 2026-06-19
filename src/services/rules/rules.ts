@@ -35,6 +35,9 @@ export type RulesMode = Pick<ModeConfig, "slug" | "name">
 
 export function shouldIncludeRuleFile(filename: string): boolean {
 	const basename = path.basename(filename)
+	if (!basename.toLowerCase().endsWith(".md")) {
+		return false
+	}
 
 	const cachePatterns = [
 		"*.DS_Store",
@@ -214,20 +217,27 @@ async function resolveRuleDirectoryEntry(
 	dirPath: string,
 	fileInfo: RuleFileInfo[],
 	depth: number,
+	originalDirPath = dirPath,
 ): Promise<void> {
 	if (depth > MAX_DEPTH) {
 		return
 	}
 
 	const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
+	const originalPath = path.join(originalDirPath, path.relative(dirPath, fullPath))
 	if (entry.isFile()) {
-		fileInfo.push({ originalPath: fullPath, resolvedPath: fullPath, isSymlink: false })
+		fileInfo.push({ originalPath, resolvedPath: fullPath, isSymlink: originalPath !== fullPath })
 	} else if (entry.isSymbolicLink()) {
-		await resolveRuleSymlink(fullPath, fileInfo, depth + 1)
+		await resolveRuleSymlink(fullPath, fileInfo, depth + 1, originalPath)
 	}
 }
 
-async function resolveRuleSymlink(symlinkPath: string, fileInfo: RuleFileInfo[], depth: number): Promise<void> {
+async function resolveRuleSymlink(
+	symlinkPath: string,
+	fileInfo: RuleFileInfo[],
+	depth: number,
+	originalSymlinkPath = symlinkPath,
+): Promise<void> {
 	if (depth > MAX_DEPTH) {
 		return
 	}
@@ -244,14 +254,16 @@ async function resolveRuleSymlink(symlinkPath: string, fileInfo: RuleFileInfo[],
 		const stats = await fs.stat(resolvedTarget)
 
 		if (stats.isFile()) {
-			fileInfo.push({ originalPath: symlinkPath, resolvedPath: resolvedTarget, isSymlink: true })
+			fileInfo.push({ originalPath: originalSymlinkPath, resolvedPath: resolvedTarget, isSymlink: true })
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(resolvedTarget, { withFileTypes: true, recursive: true })
 			await Promise.all(
-				entries.map((entry) => resolveRuleDirectoryEntry(entry, resolvedTarget, fileInfo, depth + 1)),
+				entries.map((entry) =>
+					resolveRuleDirectoryEntry(entry, resolvedTarget, fileInfo, depth + 1, originalSymlinkPath),
+				),
 			)
 		} else if (stats.isSymbolicLink()) {
-			await resolveRuleSymlink(resolvedTarget, fileInfo, depth + 1)
+			await resolveRuleSymlink(resolvedTarget, fileInfo, depth + 1, originalSymlinkPath)
 		}
 	} catch {
 		// Skip invalid symlinks.
