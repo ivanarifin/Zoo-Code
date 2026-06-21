@@ -1010,6 +1010,56 @@ describe("ClineProvider", () => {
 		expect(mockPostMessage).toHaveBeenCalled()
 	})
 
+	describe("auto-close settings are included in posted state", () => {
+		it("getStateToPostToWebview returns saved autoCloseZooOpenedFiles value", async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+
+			// Simulate the updateSettings handler storing the value.
+			await provider.contextProxy.setValue("autoCloseZooOpenedFiles", false)
+			await provider.contextProxy.setValue("autoCloseZooOpenedFilesAfterUserEdited", true)
+			await provider.contextProxy.setValue("autoCloseZooOpenedNewFiles", true)
+
+			const state = await provider.getStateToPostToWebview()
+
+			// The saved values must be present in the state posted to the webview.
+			expect(state.autoCloseZooOpenedFiles).toBe(false)
+			expect(state.autoCloseZooOpenedFilesAfterUserEdited).toBe(true)
+			expect(state.autoCloseZooOpenedNewFiles).toBe(true)
+		})
+
+		it("getStateToPostToWebview defaults autoCloseZooOpenedFiles to true when unset", async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+
+			// Ensure the settings are not set.
+			await provider.contextProxy.setValue("autoCloseZooOpenedFiles", undefined)
+			await provider.contextProxy.setValue("autoCloseZooOpenedFilesAfterUserEdited", undefined)
+			await provider.contextProxy.setValue("autoCloseZooOpenedNewFiles", undefined)
+
+			const state = await provider.getStateToPostToWebview()
+
+			// Unset values should default to their documented defaults.
+			expect(state.autoCloseZooOpenedFiles).toBe(true)
+			expect(state.autoCloseZooOpenedFilesAfterUserEdited).toBe(false)
+			expect(state.autoCloseZooOpenedNewFiles).toBe(false)
+		})
+
+		it("getState returns saved autoCloseZooOpenedFiles value for DiffViewProvider", async () => {
+			await provider.resolveWebviewView(mockWebviewView)
+
+			await provider.contextProxy.setValue("autoCloseZooOpenedFiles", false)
+			await provider.contextProxy.setValue("autoCloseZooOpenedFilesAfterUserEdited", true)
+			await provider.contextProxy.setValue("autoCloseZooOpenedNewFiles", true)
+
+			const state = await provider.getState()
+
+			// DiffViewProvider reads from getState(); all three fields must be present
+			// so a regression that drops any of them is caught.
+			expect(state.autoCloseZooOpenedFiles).toBe(false)
+			expect(state.autoCloseZooOpenedFilesAfterUserEdited).toBe(true)
+			expect(state.autoCloseZooOpenedNewFiles).toBe(true)
+		})
+	})
+
 	it("loads saved API config when switching modes", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
@@ -2580,6 +2630,8 @@ describe("ClineProvider - Router Models", () => {
 			apiKey: "litellm-key",
 			baseUrl: "http://localhost:4000",
 		})
+		// Opencode Go's /models endpoint is public, so it is fetched like the other no-auth routers.
+		expect(getModels).toHaveBeenCalledWith(expect.objectContaining({ provider: "opencode-go" }))
 
 		// Verify response was sent
 		expect(mockPostMessage).toHaveBeenCalledWith({
@@ -2595,7 +2647,7 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				poe: {},
 				deepseek: {},
-				"opencode-go": {},
+				"opencode-go": mockModels,
 			},
 			values: undefined,
 		})
@@ -2627,6 +2679,7 @@ describe("ClineProvider - Router Models", () => {
 			.mockResolvedValueOnce(mockModels) // vercel-ai-gateway success
 			.mockResolvedValueOnce(mockModels) // zoo-gateway success
 			.mockRejectedValueOnce(new Error("LiteLLM connection failed")) // litellm fail
+			.mockResolvedValueOnce(mockModels) // opencode-go (public endpoint)
 
 		await messageHandler({ type: "requestRouterModels" })
 
@@ -2644,7 +2697,7 @@ describe("ClineProvider - Router Models", () => {
 				litellm: {},
 				poe: {},
 				deepseek: {},
-				"opencode-go": {},
+				"opencode-go": mockModels,
 			},
 			values: undefined,
 		})
@@ -2741,7 +2794,7 @@ describe("ClineProvider - Router Models", () => {
 				lmstudio: {},
 				poe: {},
 				deepseek: {},
-				"opencode-go": {},
+				"opencode-go": mockModels,
 			},
 			values: undefined,
 		})

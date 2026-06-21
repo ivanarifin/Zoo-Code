@@ -23,7 +23,7 @@ export const SeeNewChangesButtons = ({ checkpoint }: { checkpoint: CompletionChe
 	const cancelRestoreChangesCallback = useCallback(() => setRestoringChanges(false), [])
 
 	return (
-		<div className="flex flex-horizontal gap-2 w-full">
+		<div className="flex flex-row gap-2 w-full">
 			{restoringChanges ? (
 				<>
 					<VSCodeButton

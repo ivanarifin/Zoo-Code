@@ -40,11 +40,11 @@ describe("getCompletionCheckpoint", () => {
 	})
 
 	it("returns the first checkpoint after an initial task row before completion", () => {
-		const messages = [
+		const messages: ClineMessage[] = [
 			{ type: "say", say: "task", ts: 1, text: "Initial task" },
 			{ type: "say", say: "checkpoint_saved", ts: 2, text: "checkpoint-after-initial-task" },
 			{ type: "ask", ask: "completion_result", ts: 3, text: "Task complete", partial: false },
-		] as ClineMessage[]
+		]
 
 		expect(getCompletionCheckpoint(messages)).toEqual({
 			ts: 2,

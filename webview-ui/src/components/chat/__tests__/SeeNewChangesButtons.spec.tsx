@@ -76,4 +76,15 @@ describe("SeeNewChangesButtons", () => {
 		expect(getByText("chat:seeNewChanges.title")).toHaveAttribute("title", "chat:seeNewChanges.tooltip")
 		expect(getByText("chat:restoreChanges.title")).toHaveAttribute("title", "chat:restoreChanges.tooltip")
 	})
+
+	it("disables restore when the checkpoint has no commit hash", () => {
+		const { getByText, queryByText } = render(<SeeNewChangesButtons checkpoint={{ ts: 2, commitHash: "" }} />)
+
+		expect(getByText("chat:restoreChanges.title")).toBeDisabled()
+
+		fireEvent.click(getByText("chat:restoreChanges.title"))
+
+		expect(queryByText("chat:checkpoint.menu.confirm chat:restoreChanges.title")).not.toBeInTheDocument()
+		expect(vscode.postMessage).not.toHaveBeenCalled()
+	})
 })

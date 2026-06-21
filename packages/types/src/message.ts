@@ -150,6 +150,7 @@ export const clineSays = [
 	"api_req_rate_limit_wait",
 	"api_req_deleted",
 	"text",
+	"task",
 	"image",
 	"reasoning",
 	"completion_result",
@@ -281,7 +282,7 @@ export interface CompletionCheckpoint {
 }
 
 const isInitialTaskMessage = (message: ClineMessage | undefined): boolean => {
-	return message?.type === "say" && (message.say === "text" || (message as { say?: string }).say === "task")
+	return message?.type === "say" && (message.say === "text" || message.say === "task")
 }
 
 const isUserFeedbackMessage = (message: ClineMessage): boolean => {
