@@ -102,6 +102,7 @@ export interface ExtensionMessage {
 		| "skills"
 		| "rules"
 		| "fileContent"
+		| "rooHistoryImportProgress"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -181,6 +182,15 @@ export interface ExtensionMessage {
 	skills?: SkillMetadata[] // For skills response
 	rules?: RuleMetadata[] // For rules response
 	modes?: { slug: string; name: string }[] // For modes response
+	rooHistoryImportProgress?: {
+		status: "starting" | "copying" | "finished" | "failed"
+		copiedFileCount: number
+		totalFileCount: number
+		importedTaskCount: number
+		totalTaskCount: number
+		currentTaskId?: string
+		currentFileName?: string
+	}
 	aggregatedCosts?: {
 		// For taskWithAggregatedCosts response
 		totalCost: number
@@ -593,6 +603,7 @@ export interface WebviewMessage {
 		| "removeInstalledMarketplaceItem"
 		| "marketplaceInstallResult"
 		| "shareTaskSuccess"
+		| "importRooHistory"
 		// Skills messages
 		| "requestSkills"
 		| "createSkill"
