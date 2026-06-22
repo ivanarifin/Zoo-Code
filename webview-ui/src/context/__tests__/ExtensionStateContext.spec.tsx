@@ -123,6 +123,42 @@ describe("ExtensionStateContext", () => {
 		])
 	})
 
+	it("clears rules when incoming rules message omits rules", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<RulesTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						type: "rules",
+						rules: [
+							{
+								id: "global:generic:generic:rule.md",
+								name: "rule.md",
+								scope: "global",
+								kind: "generic",
+								filePath: "/home/.roo/rules/rule.md",
+								relativePath: "rule.md",
+								directoryPath: "/home/.roo/rules",
+							},
+						],
+					},
+				}),
+			)
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: { type: "rules" },
+				}),
+			)
+		})
+
+		expect(JSON.parse(screen.getByTestId("rules").textContent!)).toEqual([])
+	})
+
 	it("initializes with soundEnabled set to false", () => {
 		render(
 			<ExtensionStateContextProvider>

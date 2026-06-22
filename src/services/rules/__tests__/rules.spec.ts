@@ -171,6 +171,46 @@ describe("rules service", () => {
 		await expect(fs.stat(targetRulePath)).rejects.toMatchObject({ code: "ENOENT" })
 	})
 
+	it("handles duplicate creation and invalid target rule directory inputs", async () => {
+		await createRule(cwd, { scope: "global", kind: "generic", fileName: "duplicate" })
+
+		await expect(createRule(cwd, { scope: "global", kind: "generic", fileName: "duplicate.md" })).rejects.toThrow(
+			"Rule file already exists: duplicate.md",
+		)
+		await expect(createRule(cwd, { scope: "team" as any, kind: "generic", fileName: "bad" })).rejects.toThrow(
+			"Invalid rule scope",
+		)
+		await expect(createRule(cwd, { scope: "global", kind: "team" as any, fileName: "bad" })).rejects.toThrow(
+			"Invalid rule kind",
+		)
+		await expect(createRule(cwd, { scope: "global", kind: "mode", fileName: "bad" })).rejects.toThrow(
+			"Mode-specific rules require a mode",
+		)
+		await expect(
+			createRule(cwd, { scope: "global", kind: "generic", modeSlug: "code", fileName: "bad" }),
+		).rejects.toThrow("Generic rules cannot specify a mode")
+		await expect(createRule("", { scope: "project", kind: "generic", fileName: "bad" })).rejects.toThrow(
+			"Workspace rules require an open workspace",
+		)
+		await expect(
+			createRule(cwd, { scope: "global", kind: "mode", modeSlug: "../bad", fileName: "bad" }),
+		).rejects.toThrow("Invalid mode slug")
+	})
+
+	it("returns undefined when resolving missing paths and directories", async () => {
+		await fs.mkdir(path.join(cwd, ".roo", "rules", "nested"), { recursive: true })
+
+		await expect(
+			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "missing.md" }),
+		).resolves.toBeUndefined()
+		await expect(
+			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "nested" }),
+		).rejects.toThrow("Invalid rule file")
+		await expect(
+			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "nested/missing.md" }),
+		).resolves.toBeUndefined()
+	})
+
 	it("handles missing directories as empty lists", async () => {
 		await expect(getRules(cwd, { modes: [] })).resolves.toEqual([])
 	})
