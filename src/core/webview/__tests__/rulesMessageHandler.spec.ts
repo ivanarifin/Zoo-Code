@@ -131,6 +131,66 @@ describe("rulesMessageHandler", () => {
 		expect(openFile).toHaveBeenCalledWith("/workspace/.roo/rules/rule.md")
 	})
 
+	it("handleDeleteRule shows an error when required delete values are missing", async () => {
+		const provider = createMockProvider()
+
+		const result = await handleDeleteRule(provider, "/workspace", {
+			type: "deleteRule",
+			values: { scope: "global", kind: "generic" },
+		} as WebviewMessage)
+
+		expect(result).toBeUndefined()
+		expect(deleteRule).not.toHaveBeenCalled()
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to delete rule: Missing required fields: scope, kind, or relativePath",
+		)
+	})
+
+	it("handleOpenRuleFile shows an error when the resolved rule file is missing", async () => {
+		const provider = createMockProvider()
+		vi.mocked(resolveRuleFile).mockResolvedValue(undefined)
+
+		await handleOpenRuleFile(provider, "/workspace", {
+			type: "openRuleFile",
+			values: { scope: "project", kind: "generic", relativePath: "missing.md" },
+		} as WebviewMessage)
+
+		expect(openFile).not.toHaveBeenCalled()
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to open rule file: Rule file not found")
+	})
+
+	it("handleOpenRulesDirectory shows an error when directory input is invalid", async () => {
+		const provider = createMockProvider()
+		vi.mocked(getRulesDirectoryPath).mockImplementation(() => {
+			throw new Error("Invalid rule scope")
+		})
+
+		await handleOpenRulesDirectory(provider, "/workspace", {
+			type: "openRulesDirectory",
+			values: { scope: "team", kind: "generic" },
+		} as WebviewMessage)
+
+		expect(openFile).not.toHaveBeenCalled()
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to open rules directory: Invalid rule scope",
+		)
+	})
+
+	it("handleCreateRule shows an error for missing required values before creating", async () => {
+		const provider = createMockProvider()
+
+		const result = await handleCreateRule(provider, "/workspace", {
+			type: "createRule",
+			values: { scope: "project", kind: "generic" },
+		} as WebviewMessage)
+
+		expect(result).toBeUndefined()
+		expect(createRule).not.toHaveBeenCalled()
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to create rule: Missing required fields: scope, kind, or fileName",
+		)
+	})
+
 	it("handleCreateRule shows an error for missing workspace project rules and does not refresh", async () => {
 		const provider = createMockProvider()
 		vi.mocked(createRule).mockRejectedValue(new Error("Workspace rules require an open workspace"))

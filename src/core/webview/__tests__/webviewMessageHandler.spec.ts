@@ -55,7 +55,7 @@ import type { ModelRecord } from "@roo-code/types"
 
 import { webviewMessageHandler } from "../webviewMessageHandler"
 import type { ClineProvider } from "../ClineProvider"
-import { getModels } from "../../../api/providers/fetchers/modelCache"
+import { flushModels, getModels } from "../../../api/providers/fetchers/modelCache"
 import { getLMStudioModels } from "../../../api/providers/fetchers/lmstudio"
 import { getCommands } from "../../../services/command/commands"
 import {
@@ -69,6 +69,7 @@ const { openAiCodexOAuthManager } = await import("../../../integrations/openai-c
 const { fetchOpenAiCodexRateLimitInfo } = await import("../../../integrations/openai-codex/rate-limits")
 
 const mockGetModels = getModels as Mock<typeof getModels>
+const mockFlushModels = flushModels as Mock<typeof flushModels>
 const mockGetLMStudioModels = getLMStudioModels as Mock<typeof getLMStudioModels>
 const mockGetCommands = vi.mocked(getCommands)
 const mockGetAccessToken = vi.mocked(openAiCodexOAuthManager.getAccessToken)
@@ -431,6 +432,40 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			([msg]: [{ type: string }]) => msg.type === "routerModels",
 		)
 		expect(routerModelsCall?.[0].routerModels["opencode-go"]).toEqual(mockModels)
+	})
+
+	it("flushes and fetches Opencode Go models when an explicit API key is supplied", async () => {
+		mockClineProvider.getState = vi.fn().mockResolvedValue({
+			apiConfiguration: {},
+		})
+		mockGetModels.mockResolvedValue({
+			"opencode/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "Opencode model",
+			},
+		})
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "requestRouterModels",
+			values: {
+				provider: "opencode-go",
+				opencodeGoApiKey: "fresh-key",
+			},
+		})
+
+		expect(mockFlushModels).toHaveBeenCalledWith({ provider: "opencode-go", apiKey: "fresh-key" }, true)
+		expect(mockGetModels).toHaveBeenCalledWith({ provider: "opencode-go", apiKey: "fresh-key" })
+		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
+			type: "routerModels",
+			routerModels: {
+				"opencode-go": {
+					"opencode/model": expect.objectContaining({ description: "Opencode model" }),
+				},
+			},
+			values: { provider: "opencode-go" },
+		})
 	})
 
 	it("handles LiteLLM models with values from message when config is missing", async () => {

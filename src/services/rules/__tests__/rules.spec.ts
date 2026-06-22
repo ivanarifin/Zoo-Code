@@ -133,6 +133,15 @@ describe("rules service", () => {
 		expect(shouldIncludeRuleFile("debug.log")).toBe(false)
 		expect(shouldIncludeRuleFile("notes.txt")).toBe(false)
 		expect(shouldIncludeRuleFile("good.md")).toBe(true)
+		expect(shouldIncludeRuleFile("backup.md.bak")).toBe(false)
+		expect(shouldIncludeRuleFile("Thumbs.db")).toBe(false)
+	})
+
+	it("skips non-directory rule paths", async () => {
+		await fs.mkdir(path.join(cwd, ".roo"), { recursive: true })
+		await fs.writeFile(path.join(cwd, ".roo", "rules"), "not a directory")
+
+		await expect(getRules(cwd, { modes: [] })).resolves.toEqual([])
 	})
 
 	it("round-trips symlinked directory rules through resolve and delete", async () => {
@@ -171,6 +180,32 @@ describe("rules service", () => {
 		await expect(fs.stat(targetRulePath)).rejects.toMatchObject({ code: "ENOENT" })
 	})
 
+	it("discovers a symlinked rule file target", async () => {
+		const projectRulesDir = path.join(cwd, ".roo", "rules")
+		const targetRulePath = path.join(tempDir, "linked-rule.md")
+		await fs.mkdir(projectRulesDir, { recursive: true })
+		await fs.writeFile(targetRulePath, "# Linked")
+		await fs.symlink(targetRulePath, path.join(projectRulesDir, "linked-file.md"), "file")
+
+		const rules = await getRules(cwd, { modes: [] })
+
+		expect(rules).toEqual([
+			expect.objectContaining({
+				name: "linked-file.md",
+				filePath: targetRulePath,
+				isSymlink: true,
+			}),
+		])
+	})
+
+	it("skips broken symlinks while scanning rules", async () => {
+		const projectRulesDir = path.join(cwd, ".roo", "rules")
+		await fs.mkdir(projectRulesDir, { recursive: true })
+		await fs.symlink(path.join(tempDir, "missing-target"), path.join(projectRulesDir, "broken.md"), "file")
+
+		await expect(getRules(cwd, { modes: [] })).resolves.toEqual([])
+	})
+
 	it("handles duplicate creation and invalid target rule directory inputs", async () => {
 		await createRule(cwd, { scope: "global", kind: "generic", fileName: "duplicate" })
 
@@ -195,6 +230,21 @@ describe("rules service", () => {
 		await expect(
 			createRule(cwd, { scope: "global", kind: "mode", modeSlug: "../bad", fileName: "bad" }),
 		).rejects.toThrow("Invalid mode slug")
+	})
+
+	it("validates additional invalid rule names and paths", async () => {
+		await expect(createRule(cwd, { scope: "global", kind: "generic", fileName: "   " })).rejects.toThrow(
+			"Rule name is required",
+		)
+		await expect(
+			createRule(cwd, { scope: "global", kind: "generic", fileName: `${"a".repeat(65)}.md` }),
+		).rejects.toThrow("Rule name must be 64 characters or less")
+		await expect(
+			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "notes.txt" }),
+		).rejects.toThrow("Invalid rule file")
+		await expect(resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "   " })).rejects.toThrow(
+			"Rule path is required",
+		)
 	})
 
 	it("returns undefined when resolving missing paths and directories", async () => {

@@ -140,6 +140,37 @@ describe("CreateRuleDialog", () => {
 		expect(nameInput.value).toBe("myrule_123")
 	})
 
+	it("clears the selected mode when switching back to generic rules", async () => {
+		render(
+			<CreateRuleDialog
+				open={true}
+				onOpenChange={mockOnOpenChange}
+				onRuleCreated={mockOnRuleCreated}
+				hasWorkspace={true}
+			/>,
+		)
+
+		fireEvent.change(screen.getByPlaceholderText("settings:rules.createDialog.namePlaceholder"), {
+			target: { value: "mode-rule" },
+		})
+		fireEvent.click(screen.getAllByTestId("select-set-mode")[1])
+		fireEvent.click(screen.getAllByTestId("select-set-code").at(-1)!)
+		fireEvent.click(screen.getAllByTestId("select-set-generic")[1])
+		fireEvent.click(screen.getByText("settings:rules.createDialog.create"))
+
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "createRule",
+				values: {
+					scope: "project",
+					kind: "generic",
+					modeSlug: undefined,
+					fileName: "mode-rule.md",
+				},
+			})
+		})
+	})
+
 	it("requires mode selection for mode-specific rules", () => {
 		render(
 			<CreateRuleDialog
