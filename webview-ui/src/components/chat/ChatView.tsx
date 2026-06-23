@@ -138,7 +138,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				return message.ts
 			}
 
-			// Handle ask-only completion_result rows that carry completion text.
+			// Zero-text ask completion rows are hidden by visibleMessages below, so attach
+			// actions to the latest renderable completion row while the extension host
+			// still derives the checkpoint target from authoritative task state.
 			if (message?.type === "ask" && message.ask === "completion_result" && (message.text ?? "") !== "") {
 				return message.ts
 			}

@@ -114,19 +114,7 @@ export const webviewMessageHandler = async (
 		vscode.window.showInformationMessage(getRouterUnavailableSignInMessage())
 	}
 
-	const resolveCompletionCheckpoint = (currentCline: { clineMessages: ClineMessage[] }, checkpointTs?: number) => {
-		if (checkpointTs !== undefined) {
-			const checkpoint = currentCline.clineMessages.find(
-				(message) =>
-					message.ts === checkpointTs &&
-					message.type === "say" &&
-					message.say === "checkpoint_saved" &&
-					typeof message.text === "string",
-			)
-
-			return checkpoint ? { ts: checkpoint.ts, commitHash: checkpoint.text! } : undefined
-		}
-
+	const resolveCompletionCheckpoint = (currentCline: { clineMessages: ClineMessage[] }) => {
 		return getCompletionCheckpoint(currentCline.clineMessages)
 	}
 
@@ -1398,9 +1386,7 @@ export const webviewMessageHandler = async (
 		}
 		case "completionCheckpointDiff": {
 			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline
-				? resolveCompletionCheckpoint(currentCline, message.checkpointTs)
-				: undefined
+			const checkpoint = currentCline ? resolveCompletionCheckpoint(currentCline) : undefined
 
 			if (currentCline && checkpoint) {
 				await currentCline.checkpointDiff({
@@ -1414,11 +1400,10 @@ export const webviewMessageHandler = async (
 		}
 		case "completionCheckpointRestore": {
 			const currentCline = provider.getCurrentTask()
-			const checkpoint = currentCline
-				? resolveCompletionCheckpoint(currentCline, message.checkpointTs)
-				: undefined
+			const checkpoint = currentCline ? resolveCompletionCheckpoint(currentCline) : undefined
 
-			if (checkpoint) {
+			if (currentCline && checkpoint) {
+				const originalTaskId = currentCline.taskId
 				await provider.cancelTask()
 
 				try {
@@ -1429,7 +1414,14 @@ export const webviewMessageHandler = async (
 				}
 
 				try {
-					await provider.getCurrentTask()?.checkpointRestore({
+					const restoredTask = provider.getCurrentTask()
+
+					if (!restoredTask || restoredTask.taskId !== originalTaskId) {
+						vscode.window.showErrorMessage(t("common:errors.checkpoint_failed"))
+						return
+					}
+
+					await restoredTask.checkpointRestore({
 						ts: checkpoint.ts,
 						commitHash: checkpoint.commitHash,
 						mode: "restore",
