@@ -1344,7 +1344,7 @@ export const ChatRowContent = ({
 							<div className="border-l border-green-600/30 ml-2 pl-4 pb-1">
 								<Markdown markdown={message.text} />
 								{!message.partial && enableCheckpoints !== false && completionCheckpoint ? (
-									<SeeNewChangesButtons />
+									<SeeNewChangesButtons key={completionCheckpoint.ts} />
 								) : null}
 							</div>
 						</div>
@@ -1677,7 +1677,7 @@ export const ChatRowContent = ({
 								<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 									<Markdown markdown={message.text} partial={message.partial} />
 									{!message.partial && enableCheckpoints !== false && completionCheckpoint ? (
-										<SeeNewChangesButtons />
+										<SeeNewChangesButtons key={completionCheckpoint.ts} />
 									) : null}
 								</div>
 							</div>
