@@ -1,6 +1,13 @@
 import * as vscode from "vscode"
 
-import type { CreateRuleInput, DeleteRuleInput, RuleMetadata, WebviewMessage } from "@roo-code/types"
+import type {
+	CreateRuleInput,
+	DeleteRuleInput,
+	RuleKind,
+	RuleMetadata,
+	RuleScope,
+	WebviewMessage,
+} from "@roo-code/types"
 
 import type { ClineProvider } from "./ClineProvider"
 import { openFile } from "../../integrations/misc/open-file"
@@ -119,33 +126,45 @@ async function refreshRules(provider: ClineProvider, cwd: string): Promise<RuleM
 
 function parseCreateRuleInput(message: WebviewMessage): CreateRuleInput {
 	const values = message.values ?? {}
-	const input = {
-		scope: values.scope,
-		kind: values.kind,
-		modeSlug: values.modeSlug,
-		fileName: values.fileName ?? message.text,
-	} as CreateRuleInput
+	const scope = parseRuleScope(values.scope)
+	const kind = parseRuleKind(values.kind)
+	const fileName = values.fileName ?? message.text
 
-	if (!input.scope || !input.kind || !input.fileName) {
+	if (!scope || !kind || !fileName) {
 		throw new Error("Missing required fields: scope, kind, or fileName")
 	}
 
-	return input
+	return {
+		scope,
+		kind,
+		modeSlug: typeof values.modeSlug === "string" ? values.modeSlug : undefined,
+		fileName,
+	}
 }
 
 function parseDeleteRuleInput(message: WebviewMessage): DeleteRuleInput {
 	const values = message.values ?? {}
-	const input = {
-		id: values.id,
-		scope: values.scope,
-		kind: values.kind,
-		modeSlug: values.modeSlug,
-		relativePath: values.relativePath ?? message.text,
-	} as DeleteRuleInput
+	const scope = parseRuleScope(values.scope)
+	const kind = parseRuleKind(values.kind)
+	const relativePath = values.relativePath ?? message.text
 
-	if (!input.scope || !input.kind || !input.relativePath) {
+	if (!scope || !kind || !relativePath) {
 		throw new Error("Missing required fields: scope, kind, or relativePath")
 	}
 
-	return input
+	return {
+		id: typeof values.id === "string" ? values.id : undefined,
+		scope,
+		kind,
+		modeSlug: typeof values.modeSlug === "string" ? values.modeSlug : undefined,
+		relativePath,
+	}
+}
+
+function parseRuleScope(value: unknown): RuleScope | undefined {
+	return value === "global" || value === "project" ? value : undefined
+}
+
+function parseRuleKind(value: unknown): RuleKind | undefined {
+	return value === "generic" || value === "mode" ? value : undefined
 }

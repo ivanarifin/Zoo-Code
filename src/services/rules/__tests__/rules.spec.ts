@@ -144,12 +144,40 @@ describe("rules service", () => {
 		await expect(getRules(cwd, { modes: [] })).resolves.toEqual([])
 	})
 
-	it("round-trips symlinked directory rules through resolve and delete", async () => {
+	it("skips symlinked directory rules outside the rules directory", async () => {
 		const projectRulesDir = path.join(cwd, ".roo", "rules")
 		const targetRulesDir = path.join(tempDir, "target-rules")
 		const targetRulePath = path.join(targetRulesDir, "nested", "symlinked.md")
 		await fs.mkdir(path.dirname(targetRulePath), { recursive: true })
 		await fs.mkdir(projectRulesDir, { recursive: true })
+		await fs.writeFile(targetRulePath, "# Symlinked")
+		await fs.symlink(targetRulesDir, path.join(projectRulesDir, "linked"), "dir")
+
+		const rules = await getRules(cwd, { modes: [] })
+
+		expect(rules).toEqual([])
+		await expect(
+			resolveRuleFile(cwd, {
+				scope: "project",
+				kind: "generic",
+				relativePath: path.join("linked", "nested", "symlinked.md"),
+			}),
+		).rejects.toThrow("Rule path must stay inside the rules directory")
+		await expect(
+			deleteRule(cwd, {
+				scope: "project",
+				kind: "generic",
+				relativePath: path.join("linked", "nested", "symlinked.md"),
+			}),
+		).rejects.toThrow("Rule path must stay inside the rules directory")
+		await expect(fs.stat(targetRulePath)).resolves.toBeDefined()
+	})
+
+	it("round-trips symlinked directory rules that stay inside the rules directory", async () => {
+		const projectRulesDir = path.join(cwd, ".roo", "rules")
+		const targetRulesDir = path.join(projectRulesDir, "target-rules")
+		const targetRulePath = path.join(targetRulesDir, "nested", "symlinked.md")
+		await fs.mkdir(path.dirname(targetRulePath), { recursive: true })
 		await fs.writeFile(targetRulePath, "# Symlinked")
 		await fs.symlink(targetRulesDir, path.join(projectRulesDir, "linked"), "dir")
 
@@ -180,9 +208,24 @@ describe("rules service", () => {
 		await expect(fs.stat(targetRulePath)).rejects.toMatchObject({ code: "ENOENT" })
 	})
 
-	it("discovers a symlinked rule file target", async () => {
+	it("skips symlinked rule file targets outside the rules directory", async () => {
 		const projectRulesDir = path.join(cwd, ".roo", "rules")
 		const targetRulePath = path.join(tempDir, "linked-rule.md")
+		await fs.mkdir(projectRulesDir, { recursive: true })
+		await fs.writeFile(targetRulePath, "# Linked")
+		await fs.symlink(targetRulePath, path.join(projectRulesDir, "linked-file.md"), "file")
+
+		const rules = await getRules(cwd, { modes: [] })
+
+		expect(rules).toEqual([])
+		await expect(
+			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "linked-file.md" }),
+		).rejects.toThrow("Rule path must stay inside the rules directory")
+	})
+
+	it("discovers a symlinked rule file target inside the rules directory", async () => {
+		const projectRulesDir = path.join(cwd, ".roo", "rules")
+		const targetRulePath = path.join(projectRulesDir, "target-rule.md")
 		await fs.mkdir(projectRulesDir, { recursive: true })
 		await fs.writeFile(targetRulePath, "# Linked")
 		await fs.symlink(targetRulePath, path.join(projectRulesDir, "linked-file.md"), "file")
@@ -194,6 +237,10 @@ describe("rules service", () => {
 				name: "linked-file.md",
 				filePath: targetRulePath,
 				isSymlink: true,
+			}),
+			expect.objectContaining({
+				name: "target-rule.md",
+				filePath: targetRulePath,
 			}),
 		])
 	})
@@ -238,7 +285,7 @@ describe("rules service", () => {
 		)
 		await expect(
 			createRule(cwd, { scope: "global", kind: "generic", fileName: `${"a".repeat(65)}.md` }),
-		).rejects.toThrow("Rule name must be 64 characters or less")
+		).rejects.toThrow("Rule name must be 64 characters or less (excluding the .md suffix)")
 		await expect(
 			resolveRuleFile(cwd, { scope: "project", kind: "generic", relativePath: "notes.txt" }),
 		).rejects.toThrow("Invalid rule file")

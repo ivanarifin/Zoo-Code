@@ -191,6 +191,21 @@ describe("rulesMessageHandler", () => {
 		)
 	})
 
+	it("handleCreateRule validates scope and kind before creating", async () => {
+		const provider = createMockProvider()
+
+		const result = await handleCreateRule(provider, "/workspace", {
+			type: "createRule",
+			values: { scope: "team", kind: "workspace", fileName: "new.md" },
+		} as WebviewMessage)
+
+		expect(result).toBeUndefined()
+		expect(createRule).not.toHaveBeenCalled()
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			"Failed to create rule: Missing required fields: scope, kind, or fileName",
+		)
+	})
+
 	it("handleCreateRule shows an error for missing workspace project rules and does not refresh", async () => {
 		const provider = createMockProvider()
 		vi.mocked(createRule).mockRejectedValue(new Error("Workspace rules require an open workspace"))

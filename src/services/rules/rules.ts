@@ -126,6 +126,7 @@ export async function resolveRuleFile(cwd: string, input: RuleLookupInput): Prom
 	try {
 		const stats = await fs.lstat(filePath)
 		if (stats.isFile() || stats.isSymbolicLink()) {
+			await assertRealPathInsideDirectory(filePath, directoryPath)
 			return filePath
 		}
 	} catch (error) {
@@ -181,7 +182,9 @@ async function scanRuleDirectory(directory: RuleDirectoryInfo): Promise<RuleMeta
 		const fileInfo: RuleFileInfo[] = []
 
 		await Promise.all(
-			entries.map((entry) => resolveRuleDirectoryEntry(entry, directory.directoryPath, fileInfo, 0)),
+			entries.map((entry) =>
+				resolveRuleDirectoryEntry(entry, directory.directoryPath, fileInfo, 0, directory.directoryPath),
+			),
 		)
 
 		return fileInfo
@@ -217,6 +220,7 @@ async function resolveRuleDirectoryEntry(
 	dirPath: string,
 	fileInfo: RuleFileInfo[],
 	depth: number,
+	rulesDirectoryPath: string,
 	originalDirPath = dirPath,
 ): Promise<void> {
 	if (depth > MAX_DEPTH) {
@@ -226,9 +230,11 @@ async function resolveRuleDirectoryEntry(
 	const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
 	const originalPath = path.join(originalDirPath, path.relative(dirPath, fullPath))
 	if (entry.isFile()) {
-		fileInfo.push({ originalPath, resolvedPath: fullPath, isSymlink: originalPath !== fullPath })
+		if (await isRealPathInsideDirectory(fullPath, rulesDirectoryPath)) {
+			fileInfo.push({ originalPath, resolvedPath: fullPath, isSymlink: originalPath !== fullPath })
+		}
 	} else if (entry.isSymbolicLink()) {
-		await resolveRuleSymlink(fullPath, fileInfo, depth + 1, originalPath)
+		await resolveRuleSymlink(fullPath, fileInfo, depth + 1, rulesDirectoryPath, originalPath)
 	}
 }
 
@@ -236,6 +242,7 @@ async function resolveRuleSymlink(
 	symlinkPath: string,
 	fileInfo: RuleFileInfo[],
 	depth: number,
+	rulesDirectoryPath: string,
 	originalSymlinkPath = symlinkPath,
 ): Promise<void> {
 	if (depth > MAX_DEPTH) {
@@ -253,17 +260,28 @@ async function resolveRuleSymlink(
 		const resolvedTarget = path.resolve(realSymlinkDir, linkTarget)
 		const stats = await fs.stat(resolvedTarget)
 
+		if (!(await isRealPathInsideDirectory(resolvedTarget, rulesDirectoryPath))) {
+			return
+		}
+
 		if (stats.isFile()) {
 			fileInfo.push({ originalPath: originalSymlinkPath, resolvedPath: resolvedTarget, isSymlink: true })
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(resolvedTarget, { withFileTypes: true, recursive: true })
 			await Promise.all(
 				entries.map((entry) =>
-					resolveRuleDirectoryEntry(entry, resolvedTarget, fileInfo, depth + 1, originalSymlinkPath),
+					resolveRuleDirectoryEntry(
+						entry,
+						resolvedTarget,
+						fileInfo,
+						depth + 1,
+						rulesDirectoryPath,
+						originalSymlinkPath,
+					),
 				),
 			)
 		} else if (stats.isSymbolicLink()) {
-			await resolveRuleSymlink(resolvedTarget, fileInfo, depth + 1, originalSymlinkPath)
+			await resolveRuleSymlink(resolvedTarget, fileInfo, depth + 1, rulesDirectoryPath, originalSymlinkPath)
 		}
 	} catch {
 		// Skip invalid symlinks.
@@ -306,8 +324,9 @@ function normalizeRuleFileName(fileName: string): string {
 		throw new Error("Rule name must be a file name, not a path")
 	}
 
-	if (trimmed.length > 67) {
-		throw new Error("Rule name must be 64 characters or less")
+	const ruleName = trimmed.endsWith(".md") ? trimmed.slice(0, -".md".length) : trimmed
+	if (ruleName.length > 64) {
+		throw new Error("Rule name must be 64 characters or less (excluding the .md suffix)")
 	}
 
 	if (!VALID_RULE_FILENAME_PATTERN.test(trimmed)) {
@@ -344,10 +363,25 @@ function validateModeSlug(modeSlug: string): string {
 }
 
 function assertPathInsideDirectory(filePath: string, directoryPath: string): void {
-	const relativePath = path.relative(path.resolve(directoryPath), path.resolve(filePath))
-	if (relativePath === "" || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+	if (!isPathInsideDirectory(path.resolve(filePath), path.resolve(directoryPath))) {
 		throw new Error("Rule path must stay inside the rules directory")
 	}
+}
+
+async function assertRealPathInsideDirectory(filePath: string, directoryPath: string): Promise<void> {
+	if (!(await isRealPathInsideDirectory(filePath, directoryPath))) {
+		throw new Error("Rule path must stay inside the rules directory")
+	}
+}
+
+async function isRealPathInsideDirectory(filePath: string, directoryPath: string): Promise<boolean> {
+	const [realFilePath, realDirectoryPath] = await Promise.all([fs.realpath(filePath), fs.realpath(directoryPath)])
+	return isPathInsideDirectory(realFilePath, realDirectoryPath)
+}
+
+function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {
+	const relativePath = path.relative(directoryPath, filePath)
+	return relativePath !== "" && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
 }
 
 function createRuleId(scope: RuleScope, kind: RuleKind, modeSlug: string | undefined, relativePath: string): string {
