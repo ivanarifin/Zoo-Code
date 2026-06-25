@@ -188,6 +188,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		terminalZdotdir,
 		terminalProfile,
 		writeDelayMs,
+		diffFuzzyThreshold,
 		showRooIgnoredFiles,
 		enableSubfolderRules,
 		maxImageFileSize,
@@ -396,6 +397,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					enableCheckpoints: enableCheckpoints ?? false,
 					checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 					writeDelayMs,
+					diffFuzzyThreshold,
 					terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 30_000,
 					terminalShellIntegrationDisabled,
 					terminalCommandDelay,
@@ -858,6 +860,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								includeDiagnosticMessages={includeDiagnosticMessages}
 								maxDiagnosticMessages={maxDiagnosticMessages}
 								writeDelayMs={writeDelayMs}
+								diffFuzzyThreshold={diffFuzzyThreshold}
 								includeCurrentTime={includeCurrentTime}
 								includeCurrentCost={includeCurrentCost}
 								maxGitStatusFiles={maxGitStatusFiles}

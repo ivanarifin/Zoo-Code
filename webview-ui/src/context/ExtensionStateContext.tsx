@@ -20,6 +20,7 @@ import {
 	RouterModels,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
+	DEFAULT_DIFF_FUZZY_THRESHOLD,
 } from "@roo-code/types"
 
 import { findLastIndex } from "@roo/array"
@@ -211,6 +212,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		checkpointTimeout: DEFAULT_CHECKPOINT_TIMEOUT_SECONDS, // Default to 15 seconds
 		language: "en", // Default language code
 		writeDelayMs: 1000,
+		diffFuzzyThreshold: DEFAULT_DIFF_FUZZY_THRESHOLD,
 		terminalShellIntegrationTimeout: 4000,
 		mcpEnabled: true,
 		taskSyncEnabled: false,
